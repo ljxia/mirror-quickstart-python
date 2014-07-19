@@ -1,4 +1,5 @@
 client_secrets.json
+client_secrets.dev.json
 session.secret
 
 *.py[cod]

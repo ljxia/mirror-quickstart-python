@@ -18,7 +18,7 @@ __author__ = 'alainv@google.com (Alain Vongsouvanh)'
 
 
 from google.appengine.ext import db
-
+from google.appengine.ext import blobstore
 from oauth2client.appengine import CredentialsProperty
 
 
@@ -29,3 +29,10 @@ class Credentials(db.Model):
   used by the Storage classes to store OAuth 2.0 credentials in the data store.
   """
   credentials = CredentialsProperty()
+
+
+class JournalystEntry(db.Model):
+  # TODO: add user reference
+  video = blobstore.BlobReferenceProperty
+  created = db.DateTimeProperty("Created", auto_now_add = True)
+  updated = db.DateTimeProperty("Updated", auto_now = True)

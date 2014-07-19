@@ -28,6 +28,8 @@ from oauth2client.client import FlowExchangeError
 from model import Credentials
 import util
 
+import os
+
 
 SCOPES = ('https://www.googleapis.com/auth/glass.timeline '
           'https://www.googleapis.com/auth/glass.location '
@@ -39,7 +41,10 @@ class OAuthBaseRequestHandler(webapp2.RequestHandler):
 
   def create_oauth_flow(self):
     """Create OAuth2.0 flow controller."""
-    flow = flow_from_clientsecrets('client_secrets.json', scope=SCOPES)
+    if os.environ['SERVER_SOFTWARE'].find('Development') == 0:
+      flow = flow_from_clientsecrets('client_secrets.dev.json', scope=SCOPES)
+    else:
+      flow = flow_from_clientsecrets('client_secrets.json', scope=SCOPES)
     # Dynamically set the redirect_uri based on the request URL. This is
     # extremely convenient for debugging to an alternative host without manually
     # setting the redirect URI.

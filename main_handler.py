@@ -34,7 +34,7 @@ from oauth2client.appengine import StorageByKeyName
 
 from model import Credentials
 import util
-
+from google.appengine.ext import blobstore
 
 jinja_environment = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.dirname(__file__)))
@@ -275,8 +275,90 @@ class MainHandler(webapp2.RequestHandler):
     self.mirror_service.timeline().delete(id=self.request.get('itemId')).execute()
     return 'A timeline item has been deleted.'
 	
+class JournalHandler(webapp2.RequestHandler):
+  """Request Handler for the journal endpoint."""
 
+  def _render_template(self, message=None):
+    """Render the main page template."""
+    template_values = {'userId': self.userid}
+    if message:
+      template_values['message'] = message
+    template = jinja_environment.get_template('templates/journal.html')
+    self.response.out.write(template.render(template_values))
+
+  def _send_prompt(self):
+    """Insert a timeline item."""
+    logging.info('Inserting timeline item')
+    body = {
+        'creator': {
+            'displayName': 'Schema Glass Journal',
+            'id': 'SCHEMA_GLASS_JOURNAL'
+        },
+        'text': 'Time to record!',
+        'notification': {'level': 'DEFAULT'},
+        'menuItems': [{
+          'action': 'OPEN_URI',
+          'payload': 'com.schemadesign.glassjournal://open/x/y',
+          'values': [
+            {
+              'displayName': 'Record',
+              'state': "DEFAULT"
+            },
+            {
+              'displayName': 'Launching',
+              'state': "PENDING"
+            },
+            {
+              'displayName': 'Launched',
+              'state': "CONFIRMED"
+            }
+          ]
+        }]
+    }
+
+
+        # [{
+        #   'action': 'OPEN_URI',
+        #   'payload': 'com.schemadesign.journal://open',
+          
+        # }]
+
+    # self.mirror_service is initialized in util.auth_required.
+    self.mirror_service.timeline().insert(body=body).execute()
+    return 'A timeline item with action has been inserted.'
+
+  @util.auth_required
+  def get(self):
+    message_key = str(self.userid) + "_journal"
+    message = memcache.get(key=message_key)
+    memcache.delete(key=message_key)
+    self._render_template(message)
+
+  @util.auth_required
+  def post(self):
+    """Execute the request and render the template."""
+    message_key = str(self.userid) + "_journal"
+
+    operation = self.request.get('operation')
+    # Dict of operations to easily map keys to methods.
+    operations = {
+      'sendPrompt': self._send_prompt
+    }
+    if operation in operations:
+      message = operations[operation]()
+    else:
+      message = operation + " is not yet implemented"
+    # Store the flash message for 5 seconds.
+    memcache.set(key=message_key, value=message, time=5)
+    self.redirect('/journal')
+
+class RequestUploadHandler(webapp2.RequestHandler):
+  def get(self):
+    upload_url = blobstore.create_upload_url('/journal')
+    self.response.out.write(upload_url)
 
 MAIN_ROUTES = [
-    ('/', MainHandler)
+    ('/', MainHandler),
+    ('/journal', JournalHandler),
+    ('/request-upload', RequestUploadHandler)
 ]
