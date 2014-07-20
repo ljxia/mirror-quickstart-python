@@ -369,7 +369,11 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
   def post(self):
     upload_files = self.get_uploads('file')  # 'file' is file upload field in the form
     blob_info = upload_files[0]
-    self.redirect('/serve/%s' % blob_info.key())
+    self.response.out.write(str(blob_info.key()))
+    # if self.request.get("download"):
+    #   self.redirect('/serve/%s' % str(blob_info.key()))
+    # else:
+    #   self.response.out.write(str(blob_info.key()))
 
 class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
   def get(self, resource):
