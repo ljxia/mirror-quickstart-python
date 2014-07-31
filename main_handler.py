@@ -36,6 +36,7 @@ from apiclient.http import BatchHttpRequest
 from oauth2client.appengine import StorageByKeyName
 
 from model import Credentials
+from model import JournalystEntry
 import util
 
 jinja_environment = jinja2.Environment(
@@ -280,11 +281,13 @@ class MainHandler(webapp2.RequestHandler):
 class JournalHandler(webapp2.RequestHandler):
   """Request Handler for the journal endpoint."""
 
-  def _render_template(self, message=None):
+  def _render_template(self, message=None, journals=[]):
     """Render the main page template."""
     template_values = {'userId': self.userid}
     if message:
       template_values['message'] = message
+    if journals:
+      template_values['journals'] = journals
     template = jinja_environment.get_template('templates/journal.html')
     self.response.out.write(template.render(template_values))
 
@@ -300,7 +303,7 @@ class JournalHandler(webapp2.RequestHandler):
         'notification': {'level': 'DEFAULT'},
         'menuItems': [{
           'action': 'OPEN_URI',
-          'payload': 'com.schemadesign.glassjournal://open/x/y',
+          'payload': 'com.schemadesign.glassjournal://open/' + str(self.userid),
           'values': [
             {
               'displayName': 'Record',
@@ -334,7 +337,22 @@ class JournalHandler(webapp2.RequestHandler):
     message_key = str(self.userid) + "_journal"
     message = memcache.get(key=message_key)
     memcache.delete(key=message_key)
-    self._render_template(message)
+
+    journals = JournalystEntry.all().filter("userId =", str(self.userid)).order("-created")
+
+    def transform(journal):
+      video_key = str(journal.video.key())
+      logging.info(video_key)
+      return {
+        'created': journal.created,
+        'category': journal.category,
+        'emotion': journal.emotion,
+        'video_key': str(video_key)
+      }
+
+    journals = map(transform, journals)
+
+    self._render_template(message, journals)
 
   @util.auth_required
   def post(self):
@@ -356,11 +374,11 @@ class JournalHandler(webapp2.RequestHandler):
 
 class RequestUploadHandler(webapp2.RequestHandler):
   def get(self):
-    upload_url = blobstore.create_upload_url('/journal')
+    upload_url = blobstore.create_upload_url('/upload')
     if self.request.get("form"):
       self.response.out.write('<html><body>')
       self.response.out.write('<form action="%s" method="POST" enctype="multipart/form-data">' % upload_url)
-      self.response.out.write("""Upload File: <input type="file" name="file"><br> <input type="submit"
+      self.response.out.write("""Upload File: <input type="file" name="file"><input type="hidden" name="userId" value="106814318928238419891"><input type="hidden" name="category" value="test"><input type="hidden" name="emotion" value="testemotion"><br> <input type="submit"
           name="submit" value="Submit"> </form></body></html>""")
     else:
       self.response.out.write(upload_url)
@@ -369,6 +387,11 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
   def post(self):
     upload_files = self.get_uploads('file')  # 'file' is file upload field in the form
     blob_info = upload_files[0]
+    userId = self.request.get("userId")
+    logging.info("User Id: " + userId)
+    journal = JournalystEntry(video=blob_info, userId=self.request.get("userId"), category=self.request.get("category"), emotion=self.request.get("emotion"))
+    journal.put()
+
     self.response.out.write(str(blob_info.key()))
     # if self.request.get("download"):
     #   self.redirect('/serve/%s' % str(blob_info.key()))
@@ -379,7 +402,7 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
   def get(self, resource):
     resource = str(urllib.unquote(resource))
     blob_info = blobstore.BlobInfo.get(resource)
-    self.send_blob(blob_info)
+    self.send_blob(blob_info, save_as=blob_info.filename)
 
 
 

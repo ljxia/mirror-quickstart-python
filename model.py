@@ -32,7 +32,9 @@ class Credentials(db.Model):
 
 
 class JournalystEntry(db.Model):
-  # TODO: add user reference
-  video = blobstore.BlobReferenceProperty
+  video = blobstore.BlobReferenceProperty()
+  userId = db.StringProperty()
+  category = db.StringProperty()
+  emotion = db.StringProperty()
   created = db.DateTimeProperty("Created", auto_now_add = True)
   updated = db.DateTimeProperty("Updated", auto_now = True)

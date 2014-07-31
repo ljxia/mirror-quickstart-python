@@ -30,14 +30,21 @@
   <div class="alert alert-info">{{ message }}</div>
   {% endif %}
 
-  <h3>Journal Options</h3>
   <div class="row">
     <form class="span12" action="/journal" method="post">
       <input type="hidden" name="operation" value="sendPrompt">
       <button class="btn" type="submit">
-        Trigger Prompt
+        Trigger Prompt on Glass
       </button>
     </form>
+    <br/><br/>
+    {% if journals %}
+      <ul>
+      {% for journal in journals %}
+        <li>{{ journal.created }}:  <strong>{{journal.category}}</strong> - {{journal.emotion}}   <a href="/serve/{{ journal.video_key }}">download</a></li>
+      {% endfor %}
+      </ul>
+    {% endif %}
   </div>
 </div>
 
