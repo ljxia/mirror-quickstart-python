@@ -23,11 +23,14 @@ import logging
 import os
 import webapp2
 import urllib
-
+import json
+from datetime import date, datetime
+import time
 from google.appengine.api import memcache
 from google.appengine.api import urlfetch
 from google.appengine.ext import blobstore
 from google.appengine.ext.webapp import blobstore_handlers
+from google.appengine.ext import db
 
 import httplib2
 from apiclient import errors
@@ -283,7 +286,8 @@ class JournalHandler(webapp2.RequestHandler):
 
   def _render_template(self, message=None, journals=[]):
     """Render the main page template."""
-    template_values = {'userId': self.userid}
+    upload_url = blobstore.create_upload_url('/upload')
+    template_values = {'userId': self.userid, 'upload_url': upload_url}
     if message:
       template_values['message'] = message
     if journals:
@@ -333,7 +337,7 @@ class JournalHandler(webapp2.RequestHandler):
     return 'A timeline item with action has been inserted.'
 
   @util.auth_required
-  def get(self):
+  def get(self, format):
     message_key = str(self.userid) + "_journal"
     message = memcache.get(key=message_key)
     memcache.delete(key=message_key)
@@ -342,20 +346,42 @@ class JournalHandler(webapp2.RequestHandler):
 
     def transform(journal):
       video_key = str(journal.video.key())
-      logging.info(video_key)
+      # logging.info(video_key)
       return {
+        'key': journal.key().id(),
         'created': journal.created,
         'category': journal.category,
         'emotion': journal.emotion,
+        'location': journal.location,
         'video_key': str(video_key)
       }
 
-    journals = map(transform, journals)
+    def json_transform(journal):
+      video_key = str(journal.video.key())
+      ms = time.mktime(journal.created.utctimetuple())
+      ms += getattr(journal.created, 'microseconds', 0) / 1000
+      return {
+        'created': int(ms * 1000),
+        'category': journal.category,
+        'emotion': journal.emotion,
+        'location': {
+          'lat': journal.location and journal.location.lat,
+          'lon': journal.location and journal.location.lon
+        },
+        'video_url': '/serve/' + str(video_key)
+      }
 
-    self._render_template(message, journals)
+    if format == '.json':
+      journals = map(json_transform, journals)
+      self.response.headers.add_header("Access-Control-Allow-Origin", "*")
+      self.response.headers["Content-Type"] = "application/json"
+      self.response.out.write( json.dumps(journals) )
+    else:
+      journals = map(transform, journals)
+      self._render_template(message, journals)
 
   @util.auth_required
-  def post(self):
+  def post(self, format=''):
     """Execute the request and render the template."""
     message_key = str(self.userid) + "_journal"
 
@@ -371,6 +397,21 @@ class JournalHandler(webapp2.RequestHandler):
     # Store the flash message for 5 seconds.
     memcache.set(key=message_key, value=message, time=5)
     self.redirect('/journal')
+
+class JournalDeleteHandler(webapp2.RequestHandler):
+  @util.auth_required
+  def get(self, journal_key):
+    journal = JournalystEntry.getByKey(journal_key)
+
+    if journal:
+      journal.delete()
+      message_key = str(self.userid) + "_journal"
+      message="Journal deleted"
+      memcache.set(key=message_key, value=message, time=5)
+      self.redirect('/journal')
+      # self.response.out.write(journal.category + ": " + journal.emotion)
+    else:
+      self.response.out.write("not found")
 
 class RequestUploadHandler(webapp2.RequestHandler):
   def get(self):
@@ -388,11 +429,17 @@ class UploadHandler(blobstore_handlers.BlobstoreUploadHandler):
     upload_files = self.get_uploads('file')  # 'file' is file upload field in the form
     blob_info = upload_files[0]
     userId = self.request.get("userId")
-    logging.info("User Id: " + userId)
-    journal = JournalystEntry(video=blob_info, userId=self.request.get("userId"), category=self.request.get("category"), emotion=self.request.get("emotion"))
+    lat = self.request.get("lat")
+    lon = self.request.get("lon")
+    location = db.GeoPt(lat, lon)
+    journal = JournalystEntry(video=blob_info, userId=self.request.get("userId"), category=self.request.get("category"), emotion=self.request.get("emotion"), location=location)
     journal.put()
 
-    self.response.out.write(str(blob_info.key()))
+    if self.request.get("html"):
+      self.redirect('/journal')
+    else:
+      self.response.out.write(str(blob_info.key()))
+
     # if self.request.get("download"):
     #   self.redirect('/serve/%s' % str(blob_info.key()))
     # else:
@@ -408,7 +455,8 @@ class ServeHandler(blobstore_handlers.BlobstoreDownloadHandler):
 
 MAIN_ROUTES = [
     ('/', MainHandler),
-    ('/journal', JournalHandler),
+    ('/journal(\.[a-z]+)?', JournalHandler),
+    ('/journal/delete/([^/]+)', JournalDeleteHandler),
     ('/request-upload', RequestUploadHandler),
     ('/upload', UploadHandler),
     ('/serve/([^/]+)?', ServeHandler)

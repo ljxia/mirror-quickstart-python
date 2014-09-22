@@ -21,6 +21,7 @@ from google.appengine.ext import db
 from google.appengine.ext import blobstore
 from oauth2client.appengine import CredentialsProperty
 
+import logging
 
 class Credentials(db.Model):
   """Datastore entity for storing OAuth2.0 credentials.
@@ -36,5 +37,11 @@ class JournalystEntry(db.Model):
   userId = db.StringProperty()
   category = db.StringProperty()
   emotion = db.StringProperty()
+  location = db.GeoPtProperty()
   created = db.DateTimeProperty("Created", auto_now_add = True)
   updated = db.DateTimeProperty("Updated", auto_now = True)
+
+  @staticmethod
+  def getByKey(key_string):
+    key = db.Key.from_path(u'JournalystEntry', long(float(key_string)))
+    return JournalystEntry.get( key )

@@ -36,20 +36,152 @@
       <button class="btn" type="submit">
         Trigger Prompt on Glass
       </button>
+      <a class="btn" href="/journal.json" target="_blank">Sample JSON</a>
     </form>
     <br/><br/>
     {% if journals %}
-      <ul>
+      <table class="span12 table table-striped">
       {% for journal in journals %}
-        <li>{{ journal.created }}:  <strong>{{journal.category}}</strong> - {{journal.emotion}}   <a href="/serve/{{ journal.video_key }}">download</a></li>
+        <tr>
+          <td><strong>{{journal.category}}</strong></td>
+          <td>{{ journal.emotion }}</td>
+          <td>{{ journal.location.lat }},{{ journal.location.lon }}</td>
+          <td>{{ journal.created }}</td>
+
+          <td>
+            <a class="btn" href="/serve/{{ journal.video_key }}">download</a>
+            <a class="btn" href="/journal/delete/{{ journal.key }}">delete</a>
+          </td>
+        </tr>
       {% endfor %}
-      </ul>
+      </table>
     {% endif %}
+  </div>
+
+  <div class="row">
+    <form class="span12" action="{{ upload_url }}" method="POST" enctype="multipart/form-data">
+      <fieldset>
+        <legend>Create New Entry</legend>
+        <label>Choose Video</label> 
+        <input type="file" name="file">
+        <input type="hidden" name="userId" value="{{userId}}">
+        <input type="hidden" name="html" value="1">
+        <br/>
+        <br/>
+        <label>Choose emotions</label> 
+        <select id="category" name="category"/>
+          <option value="Happiness">Happiness</option>
+          <option value="Sadness">Sadness</option>
+          <option value="Relaxation">Relaxation</option>
+          <option value="Stress">Stress</option>
+          <option value="Energetic">Energetic</option>
+          <option value="Tired">Tired</option>
+          <option value="Humor">Humor</option>
+          <option value="Disgust">Disgust</option>
+          <option value="Creativity">Creativity</option>
+          <option value="Boredom">Boredom</option>
+        </select>
+        <select id="emotion" name="emotion"></select>
+        <br/>
+        <br/>
+        <label>Choose location</label> 
+        <input type="text" id="location-name" class="input-xxlarge"/><br/>
+        Lat <input type="text" name="lat" id="lat" class="input-small" /> Long <input type="text" name="lon" id="lon" class="input-small" /> 
+        <div id="map" style="width: 100%; height: 300px;"></div>
+        <br/>
+        <br/>
+        <button type="submit" name="submit" class="btn">Save</button>
+      </fieldset>
+    </form>
   </div>
 </div>
 
-<script
-    src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
-<script src="/static/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src='//maps.google.com/maps/api/js?sensor=false&libraries=places'></script>
+<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script type="text/javascript" src="/static/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="/static/js/locationpicker.jquery.js"></script>
+<script type="text/javascript">
+  var allOptions = {
+    "Happiness": [
+      "Satisfied",
+      "Very happy",
+      "Elated"
+    ],
+    "Sadness": [
+      "Feeling down",
+      "Disappointed",
+      "Heartbroken"
+    ],
+    "Relaxation": [
+      "Mellow",
+      "Very relaxed",
+      "Zen"
+    ],
+    "Stress": [
+      "Nervous",
+      "Worried",
+      "Very stressed"
+    ],
+    "Energetic": [
+      "Awake",
+      "Alert",
+      "Carpe diem"
+    ],
+    "Tired": [
+      "Need coffee",
+      "Running out of steam",
+      "Burnt out"
+    ],
+    "Humor": [
+      "Amused",
+      "Very funny",
+      "Hilarious"
+    ],
+    "Disgust": [
+      "Not amused",
+      "Annoyed",
+      "Angry"
+    ],
+    "Creativity": [
+      "Interesting",
+      "Inspired",
+      "Genius"
+    ],
+    "Boredom": [
+      "Uninterested",
+      "Restless",
+      "Very bored"
+    ]
+  }
+  var refreshOptions = function(){
+    var category = $('#category').val();
+    var options = allOptions[category] || [];
+    $('#emotion').html(options.map(function(o, i){
+      el = $('<option></option>').val(o).text(o)
+      if (i === 1) { el.attr('selected', 'selected')}
+      return el;
+    }));
+  };
+  $(function(){
+    refreshOptions();
+    $('#category').on('change', refreshOptions);
+    $('#location-name').on('keypress', function(e){
+      if (e.which == 13) {return false;}
+    })
+    $('#map').locationpicker({
+      location: {latitude: 40.77898388435883, longitude: -73.96883189526363},
+      radius: 0,
+      enableAutocomplete: true,
+      inputBinding: {
+        latitudeInput: $('#lat'),
+        longitudeInput: $('#lon'),
+        locationNameInput: $('#location-name')
+      },
+      onchanged: function(currentLocation, radius, isMarkerDropped) {
+        console.log(currentLocation);
+      }
+    });
+  });
+</script>
 </body>
 </html>
